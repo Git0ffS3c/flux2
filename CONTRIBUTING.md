@@ -59,7 +59,7 @@ This project is composed of:
 ### Understanding the code
 
 To get started with developing controllers, you might want to review
-[our guide](https://fluxcd.io/docs/gitops-toolkit/source-watcher/) which
+[our guide](https://fluxcd.io/flux/gitops-toolkit/source-watcher/) which
 walks you through writing a short and concise controller that watches out
 for source changes.
 
@@ -67,7 +67,7 @@ for source changes.
 
 Prerequisites:
 
-* go >= 1.17
+* go >= 1.20
 * kubectl >= 1.20
 * kustomize >= 4.4
 * coreutils (on Mac OS)

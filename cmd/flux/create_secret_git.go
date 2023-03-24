@@ -21,6 +21,7 @@ import (
 	"crypto/elliptic"
 	"fmt"
 	"net/url"
+	"os"
 
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
@@ -36,7 +37,7 @@ var createSecretGitCmd = &cobra.Command{
 	Short: "Create or update a Kubernetes secret for Git authentication",
 	Long: `The create secret git command generates a Kubernetes secret with Git credentials.
 For Git over SSH, the host and SSH keys are automatically generated and stored in the secret.
-For Git over HTTP/S, the provided basic authentication credentials are stored in the secret.`,
+For Git over HTTP/S, the provided basic authentication credentials or bearer authentication token are stored in the secret.`,
 	Example: `  # Create a Git SSH authentication secret using an ECDSA P-521 curve public key
 
   flux create secret git podinfo-auth \
@@ -86,6 +87,7 @@ type secretGitFlags struct {
 	ecdsaCurve     flags.ECDSACurve
 	caFile         string
 	privateKeyFile string
+	bearerToken    string
 }
 
 var secretGitArgs = NewSecretGitFlags()
@@ -99,6 +101,7 @@ func init() {
 	createSecretGitCmd.Flags().Var(&secretGitArgs.ecdsaCurve, "ssh-ecdsa-curve", secretGitArgs.ecdsaCurve.Description())
 	createSecretGitCmd.Flags().StringVar(&secretGitArgs.caFile, "ca-file", "", "path to TLS CA file used for validating self-signed certificates")
 	createSecretGitCmd.Flags().StringVar(&secretGitArgs.privateKeyFile, "private-key-file", "", "path to a passwordless private key file used for authenticating to the Git SSH server")
+	createSecretGitCmd.Flags().StringVar(&secretGitArgs.bearerToken, "bearer-token", "", "bearer authentication token")
 
 	createSecretCmd.AddCommand(createSecretGitCmd)
 }
@@ -135,19 +138,33 @@ func createSecretGitCmdRun(cmd *cobra.Command, args []string) error {
 	}
 	switch u.Scheme {
 	case "ssh":
+		keypair, err := sourcesecret.LoadKeyPairFromPath(secretGitArgs.privateKeyFile, secretGitArgs.password)
+		if err != nil {
+			return err
+		}
+		opts.Keypair = keypair
 		opts.SSHHostname = u.Host
-		opts.PrivateKeyPath = secretGitArgs.privateKeyFile
 		opts.PrivateKeyAlgorithm = sourcesecret.PrivateKeyAlgorithm(secretGitArgs.keyAlgorithm)
 		opts.RSAKeyBits = int(secretGitArgs.rsaBits)
 		opts.ECDSACurve = secretGitArgs.ecdsaCurve.Curve
 		opts.Password = secretGitArgs.password
 	case "http", "https":
-		if secretGitArgs.username == "" || secretGitArgs.password == "" {
-			return fmt.Errorf("for Git over HTTP/S the username and password are required")
+		if (secretGitArgs.username == "" || secretGitArgs.password == "") && secretGitArgs.bearerToken == "" {
+			return fmt.Errorf("for Git over HTTP/S the username and password, or a bearer token is required")
 		}
 		opts.Username = secretGitArgs.username
 		opts.Password = secretGitArgs.password
-		opts.CAFilePath = secretGitArgs.caFile
+		opts.BearerToken = secretGitArgs.bearerToken
+		if secretGitArgs.username != "" && secretGitArgs.password != "" && secretGitArgs.bearerToken != "" {
+			return fmt.Errorf("user credentials and bearer token cannot be used together")
+		}
+		if secretGitArgs.caFile != "" {
+			caBundle, err := os.ReadFile(secretGitArgs.caFile)
+			if err != nil {
+				return fmt.Errorf("unable to read TLS CA file: %w", err)
+			}
+			opts.CAFile = caBundle
+		}
 	default:
 		return fmt.Errorf("git URL scheme '%s' not supported, can be: ssh, http and https", u.Scheme)
 	}

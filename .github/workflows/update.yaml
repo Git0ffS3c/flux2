@@ -1,4 +1,4 @@
-name: Update Components
+name: update
 
 on:
   workflow_dispatch:
@@ -7,20 +7,29 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   update-components:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
       - name: Check out code
-        uses: actions/checkout@v3
+        uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f # v3.4.0
       - name: Setup Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9 # v4.0.0
         with:
-          go-version: 1.18.x
+          go-version: 1.20.x
+          cache-dependency-path: |
+            **/go.sum
+            **/go.mod
       - name: Update component versions
         id: update
         run: |
-          PR_BODY=""
+          PR_BODY=$(mktemp)
 
           bump_version() {
             local LATEST_VERSION=$(curl -s https://api.github.com/repos/fluxcd/$1/releases | jq -r 'sort_by(.published_at) | .[-1] | .tag_name')
@@ -47,7 +56,8 @@ jobs:
             fi
 
             if [[ "$changed" == true ]]; then
-              PR_BODY="$PR_BODY- $1 to ${LATEST_VERSION}%0A  https://github.com/fluxcd/$1/blob/${LATEST_VERSION}/CHANGELOG.md%0A"
+              echo "- $1 to ${LATEST_VERSION}" >> $PR_BODY
+              echo "  https://github.com/fluxcd/$1/blob/${LATEST_VERSION}/CHANGELOG.md" >> $PR_BODY
             fi
           }
 
@@ -64,12 +74,17 @@ jobs:
             git diff
 
             # export PR_BODY for PR and commit
-            echo "::set-output name=pr_body::$PR_BODY"
+            # NB: this may look strange but it is the way it should be done to
+            # maintain our precious newlines
+            # Ref: https://github.com/github/docs/issues/21529
+            echo 'pr_body<<EOF' >> $GITHUB_OUTPUT
+            cat $PR_BODY >> $GITHUB_OUTPUT
+            echo 'EOF' >> $GITHUB_OUTPUT
           }
 
       - name: Create Pull Request
         id: cpr
-        uses: peter-evans/create-pull-request@v3
+        uses: peter-evans/create-pull-request@38e0b6e68b4c852a5500a94740f0e535e0d7ba54 # v4.2.4
         with:
           token: ${{ secrets.BOT_GITHUB_TOKEN }}
           commit-message: |

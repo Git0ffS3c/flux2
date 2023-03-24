@@ -162,8 +162,17 @@ func (get getCommand) run(cmd *cobra.Command, args []string) error {
 	}
 
 	if get.list.len() == 0 {
-		if !getAll {
-			logger.Failuref("no %s objects found in %s namespace", get.kind, *kubeconfigArgs.Namespace)
+		if len(args) > 0 {
+			logger.Failuref("%s object '%s' not found in %s namespace",
+				get.kind,
+				args[0],
+				namespaceNameOrAny(getArgs.allNamespaces, *kubeconfigArgs.Namespace),
+			)
+		} else if !getAll {
+			logger.Failuref("no %s objects found in %s namespace",
+				get.kind,
+				namespaceNameOrAny(getArgs.allNamespaces, *kubeconfigArgs.Namespace),
+			)
 		}
 		return nil
 	}
@@ -190,6 +199,13 @@ func (get getCommand) run(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+func namespaceNameOrAny(allNamespaces bool, namespaceName string) string {
+	if allNamespaces {
+		return "any"
+	}
+	return fmt.Sprintf("%q", namespaceName)
+}
+
 func getRowsToPrint(getAll bool, list summarisable) ([][]string, error) {
 	noFilter := true
 	var conditionType, conditionStatus string
@@ -212,7 +228,6 @@ func getRowsToPrint(getAll bool, list summarisable) ([][]string, error) {
 	return rows, nil
 }
 
-//
 // watch starts a client-side watch of one or more resources.
 func (get *getCommand) watch(ctx context.Context, kubeClient client.WithWatch, cmd *cobra.Command, args []string, listOpts []client.ListOption) error {
 	w, err := kubeClient.Watch(ctx, get.list.asClientList(), listOpts...)

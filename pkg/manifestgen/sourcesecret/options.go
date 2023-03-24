@@ -18,6 +18,8 @@ package sourcesecret
 
 import (
 	"crypto/elliptic"
+
+	"github.com/fluxcd/pkg/ssh"
 )
 
 type PrivateKeyAlgorithm string
@@ -37,24 +39,27 @@ const (
 	PrivateKeySecretKey = "identity"
 	PublicKeySecretKey  = "identity.pub"
 	KnownHostsSecretKey = "known_hosts"
+	BearerTokenKey      = "bearerToken"
 )
 
 type Options struct {
 	Name                string
 	Namespace           string
 	Labels              map[string]string
+	Registry            string
 	SSHHostname         string
 	PrivateKeyAlgorithm PrivateKeyAlgorithm
 	RSAKeyBits          int
 	ECDSACurve          elliptic.Curve
-	PrivateKeyPath      string
+	Keypair             *ssh.KeyPair
 	Username            string
 	Password            string
-	CAFilePath          string
-	CertFilePath        string
-	KeyFilePath         string
+	CAFile              []byte
+	CertFile            []byte
+	KeyFile             []byte
 	TargetPath          string
 	ManifestFile        string
+	BearerToken         string
 }
 
 func MakeDefaultOptions() Options {
@@ -63,12 +68,12 @@ func MakeDefaultOptions() Options {
 		Namespace:           "flux-system",
 		Labels:              map[string]string{},
 		PrivateKeyAlgorithm: RSAPrivateKeyAlgorithm,
-		PrivateKeyPath:      "",
 		Username:            "",
 		Password:            "",
-		CAFilePath:          "",
-		CertFilePath:        "",
-		KeyFilePath:         "",
+		CAFile:              []byte{},
+		CertFile:            []byte{},
+		KeyFile:             []byte{},
 		ManifestFile:        "secret.yaml",
+		BearerToken:         "",
 	}
 }

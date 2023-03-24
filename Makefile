@@ -1,4 +1,5 @@
 VERSION?=$(shell grep 'VERSION' cmd/flux/main.go | awk '{ print $$4 }' | head -n 1 | tr -d '"')
+DEV_VERSION?=0.0.0-$(shell git rev-parse --abbrev-ref HEAD)-$(shell git rev-parse --short HEAD)-$(shell date +%s)
 EMBEDDED_MANIFESTS_TARGET=cmd/flux/.manifests.done
 TEST_KUBECONFIG?=/tmp/flux-e2e-test-kubeconfig
 # Architecture to use envtest with
@@ -16,8 +17,8 @@ rwildcard=$(foreach d,$(wildcard $(addsuffix *,$(1))),$(call rwildcard,$(d)/,$(2
 all: test build
 
 tidy:
-	go mod tidy -compat=1.17
-	cd tests/azure && go mod tidy -compat=1.17
+	go mod tidy -compat=1.20
+	cd tests/azure && go mod tidy -compat=1.20
 
 fmt:
 	go fmt ./...
@@ -54,6 +55,9 @@ $(EMBEDDED_MANIFESTS_TARGET): $(call rwildcard,manifests/,*.yaml *.json)
 
 build: $(EMBEDDED_MANIFESTS_TARGET)
 	CGO_ENABLED=0 go build -ldflags="-s -w -X main.VERSION=$(VERSION)" -o ./bin/flux ./cmd/flux
+
+build-dev: $(EMBEDDED_MANIFESTS_TARGET)
+	CGO_ENABLED=0 go build -ldflags="-s -w -X main.VERSION=$(DEV_VERSION)" -o ./bin/flux ./cmd/flux
 
 .PHONY: install
 install:
